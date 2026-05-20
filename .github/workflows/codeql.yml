@@ -1,0 +1,38 @@
+name: "SAST Scan"
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  schedule:
+    # Dit voert de scan elke maandag om 00:00 uit 
+    - cron: '0 0 * * 1'
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript' ] # Juice-Shop is primair JS/TS 
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    # Initialiseer de CodeQL tools 
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+    # CodeQL probeert automatisch de build te begrijpen 
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+    # Voer de daadwerkelijke scan uit 
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:${{ matrix.language }}"
