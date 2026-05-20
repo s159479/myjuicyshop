@@ -1,0 +1,24 @@
+on: 
+  push: 
+    branches: [ "main", "master" ] 
+  pull_request: 
+    branches: [ "main", "master" ] 
+  schedule: 
+    # Wekelijkse scan op maandagochtend 
+    - cron: '0 8 * * 1' 
+jobs: 
+  sca-scan: 
+    name: Dependency Security Scan 
+    runs-on: ubuntu-latest 
+    steps: 
+      - name: Checkout code 
+        uses: actions/checkout@v3 
+      - name: Run Trivy SCA 
+        uses: aquasecurity/trivy-action@master 
+        with: 
+          scan-type: 'fs' 
+          scan-ref: '.' 
+          # '1' zorgt ervoor dat de pipeline stopt (fail) bij gevonden lekken 
+          exit-code: '1' 
+          severity: 'CRITICAL,HIGH' 
+          format: 'table' 
