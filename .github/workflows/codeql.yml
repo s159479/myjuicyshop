@@ -1,13 +1,12 @@
 name: "SAST Scan"
-
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
   schedule:
-    # Dit voert de scan elke maandag om 00:00 uit 
     - cron: '0 0 * * 1'
+
 jobs:
   analyze:
     name: Analyze
@@ -19,20 +18,49 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript' ] # Juice-Shop is primair JS/TS 
+        language: [ 'javascript' ]
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-    # Initialiseer de CodeQL tools 
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
-    # CodeQL probeert automatisch de build te begrijpen 
+        # Add a query suite that marks findings as errors
+        queries: security-and-quality
+
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
-    # Voer de daadwerkelijke scan uit 
+
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
       with:
+        category: "/language:${{ matrix.language }}"
+        output: results
+        upload: false   # We handle upload ourselves after the check
+
+    - name: Check for vulnerabilities and block pipeline
+      run: |
+        SARIF_FILE=$(find results -name "*.sarif" | head -n 1)
+        echo "Checking: $SARIF_FILE"
+        
+        ERROR_COUNT=$(jq '[.runs[].results[] | select(.level == "error")] | length' "$SARIF_FILE")
+        WARNING_COUNT=$(jq '[.runs[].results[] | select(.level == "warning")] | length' "$SARIF_FILE")
+        
+        echo "Errors found: $ERROR_COUNT"
+        echo "Warnings found: $WARNING_COUNT"
+        
+        if [ "$ERROR_COUNT" -gt 0 ]; then
+          echo "❌ Pipeline blocked: $ERROR_COUNT high-severity SAST vulnerability/vulnerabilities found."
+          exit 1
+        else
+          echo "✅ No blocking vulnerabilities found."
+        fi
+
+    - name: Upload SARIF results
+      if: always()   # Upload even if the previous step failed
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: results
         category: "/language:${{ matrix.language }}"
